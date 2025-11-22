@@ -1,6 +1,6 @@
 fastapi==0.100.0
 uvicorn[standard]==0.22.0
-aiortc==1.8.2
+aiortc==1.14.0
 mss==8.0.1
 PyAutoGUI==0.9.53
 psutil==5.9.5
