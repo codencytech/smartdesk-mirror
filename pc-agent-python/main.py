@@ -6,7 +6,9 @@ from core.system_monitor import system_monitor
 from core.command_executor import command_executor
 from core.connection_manager import connection_manager
 import time
-import socket  # ADD THIS IMPORT
+import socket
+from fastapi.responses import Response
+import json
 
 app = FastAPI(title="SmartDesk Mirror - PC Agent")
 
@@ -189,7 +191,7 @@ def get_connection_status(code: str):
             content={"active": False, "message": str(e)}
         )
 
-# Protected endpoints - require active connection
+
 @app.get("/mobile/screen")
 def get_mobile_screen(request: Request):
     """Get screen capture for mobile app"""
@@ -203,8 +205,23 @@ def get_mobile_screen(request: Request):
     
     try:
         frame = screen.capture()
-        return {"frame": frame}
+        if frame:
+            print(f"✅ Screen captured, returning direct data URL (length: {len(frame)})")
+            # Return as plain text with the data URL directly
+            return Response(
+                content=frame,
+                media_type="text/plain"
+            )
+        else:
+            print("❌ Screen capture returned None")
+            return JSONResponse(
+                status_code=500,
+                content={"error": "Screen capture failed"}
+            )
     except Exception as e:
+        print(f"❌ Screen capture error: {e}")
+        import traceback
+        traceback.print_exc()
         return JSONResponse(
             status_code=500,
             content={"error": f"Screen capture failed: {str(e)}"}
@@ -327,6 +344,80 @@ def get_local_ip():
                 "error": "Could not determine local IP",
                 "method": "fallback"
             }
+
+# In main.py - Add debug endpoint
+@app.get("/debug/screen-test")
+def debug_screen_test():
+    """Debug endpoint to test screen capture"""
+    try:
+        frame = screen.capture()
+        if frame:
+            return {
+                "status": "success",
+                "frame_length": len(frame),
+                "has_data": True
+            }
+        else:
+            return {
+                "status": "error", 
+                "message": "Screen capture returned None"
+            }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+# In main.py - Add direct screen test endpoint
+@app.get("/debug/screen-direct")
+def debug_screen_direct():
+    """Debug endpoint to return screen capture directly"""
+    try:
+        frame = screen.capture()
+        if frame:
+            # Return as plain text with image content type
+            from fastapi.responses import Response
+            return Response(
+                content=frame,
+                media_type="text/plain"
+            )
+        else:
+            return JSONResponse(
+                status_code=500,
+                content={"error": "Screen capture failed"}
+            )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Screen capture failed: {str(e)}"}
+        )
+
+# In main.py - Add this debug endpoint
+@app.get("/debug/screen-raw")
+def debug_screen_raw():
+    """Debug endpoint to see raw screen response"""
+    try:
+        frame = screen.capture()
+        if frame:
+            return {
+                "raw_response": frame[:200] + "..." if len(frame) > 200 else frame,
+                "is_data_url": frame.startswith("data:image"),
+                "length": len(frame)
+            }
+        else:
+            return {"error": "Screen capture returned None"}
+    except Exception as e:
+        return {"error": str(e)}
+
+# In main.py - Add a simple test endpoint
+@app.get("/debug/simple-test")
+def debug_simple_test():
+    """Simple test endpoint that returns plain text"""
+    return "Hello from PC - This is plain text response"
 
 if __name__ == "__main__":
     print("🚀 Starting PC Agent...")

@@ -1,74 +1,80 @@
+# File: core/screen_capture.py
 import base64
-import cv2
+import io
+from PIL import ImageGrab
 import numpy as np
-from mss import mss
-import pyautogui
 
 class ScreenCapture:
     def __init__(self):
-        try:
-            self.sct = mss()
-            # Test if we can access monitors
-            self.monitors = self.sct.monitors
-            print(f"Available monitors: {len(self.monitors)}")
-        except Exception as e:
-            print(f"MSS initialization failed: {e}")
-            self.sct = None
+        self.quality = 50  # JPEG quality (1-100)
+        self.scale_factor = 0.5  # Scale down for mobile
 
     def capture(self):
         try:
-            # Method 1: Try MSS first
-            if self.sct and len(self.monitors) > 1:
-                screenshot = self.sct.grab(self.monitors[1])
-                img = np.array(screenshot)
-                # Convert from BGRA to BGR
-                img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
-            else:
-                # Method 2: Fallback to pyautogui
-                screenshot = pyautogui.screenshot()
-                img = np.array(screenshot)
-                # Convert from RGB to BGR for OpenCV
-                img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+            # Capture the screen
+            screenshot = ImageGrab.grab()
             
-            # Resize image to reduce bandwidth (optional)
-            height, width = img.shape[:2]
-            if height > 800 or width > 1200:
-                scale = min(800/height, 1200/width)
-                new_width = int(width * scale)
-                new_height = int(height * scale)
-                img = cv2.resize(img, (new_width, new_height))
+            # Resize for mobile optimization
+            width, height = screenshot.size
+            new_width = int(width * self.scale_factor)
+            new_height = int(height * self.scale_factor)
+            screenshot = screenshot.resize((new_width, new_height))
             
-            # Encode to JPEG with quality compression
-            _, buffer = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 70])
-            encoded = base64.b64encode(buffer).decode("utf-8")
-            return encoded
+            # Convert to JPEG and then to base64
+            buffer = io.BytesIO()
+            screenshot.save(buffer, format='JPEG', quality=self.quality)
+            img_bytes = buffer.getvalue()
+            
+            # Convert to base64 string
+            img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+            
+            # Return as data URL for direct image display
+            return f"data:image/jpeg;base64,{img_base64}"
             
         except Exception as e:
             print(f"Screen capture error: {e}")
-            return self._get_error_image(str(e))
+            return None
 
-    def _get_error_image(self, error_msg=""):
-        """Return a descriptive error image"""
-        img = np.zeros((400, 600, 3), dtype=np.uint8)
+    def set_quality(self, quality):
+        self.quality = max(1, min(100, quality))
+
+    def set_scale(self, scale):
+        self.scale_factor = max(0.1, min(1.0, scale))
+
+# In screen_capture.py - Add debug logging
+def capture(self):
+    try:
+        # Capture the screen
+        screenshot = ImageGrab.grab()
         
-        # Add error message to image
-        lines = [
-            "Screen Capture Failed",
-            "Common fixes:",
-            "1. Run as Administrator",
-            "2. Check display permissions",
-            "3. Try different capture method"
-        ]
+        # Resize for mobile optimization
+        width, height = screenshot.size
+        new_width = int(width * self.scale_factor)
+        new_height = int(height * self.scale_factor)
+        screenshot = screenshot.resize((new_width, new_height))
         
-        if error_msg:
-            lines.append(f"Error: {error_msg[:50]}...")
+        # Convert to JPEG and then to base64
+        buffer = io.BytesIO()
+        screenshot.save(buffer, format='JPEG', quality=self.quality)
+        img_bytes = buffer.getvalue()
         
-        y_pos = 50
-        for line in lines:
-            cv2.putText(img, line, (20, y_pos), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
-            y_pos += 30
+        # Convert to base64 string
+        img_base64 = base64.b64encode(img_bytes).decode('utf-8')
         
-        _, buffer = cv2.imencode(".jpg", img)
-        encoded = base64.b64encode(buffer).decode("utf-8")
-        return encoded
+        # Create data URL
+        data_url = f"data:image/jpeg;base64,{img_base64}"
+        
+        print(f"✅ Screen captured successfully")
+        print(f"   Original size: {width}x{height}")
+        print(f"   Scaled size: {new_width}x{new_height}")
+        print(f"   JPEG quality: {self.quality}")
+        print(f"   Base64 length: {len(img_base64)}")
+        print(f"   Data URL length: {len(data_url)}")
+        
+        return data_url
+        
+    except Exception as e:
+        print(f"❌ Screen capture error: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
